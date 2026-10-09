@@ -50,6 +50,18 @@ h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
 .host b{display:block;font:700 18px/1.2 var(--display)}
 .host span{display:block;margin-top:4px;color:#C9DBFF;font-size:14px}
 .foot{margin-top:36px;border-top:1px solid var(--line);padding:22px 16px;color:var(--muted);font-size:13px;text-align:center}
+
+/* controles propios */
+.bar{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--navy);color:#fff}
+.bar button{flex:none;height:40px;min-width:40px;padding:0 10px;border:0;border-radius:10px;background:rgba(255,255,255,.1);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;font:700 13px/1 var(--body)}
+.bar button:hover{background:rgba(255,255,255,.2)}
+.bar .pp{background:var(--orange)}
+.bar .pp:hover{background:var(--orange-2)}
+.seek{flex:1;min-width:60px;-webkit-appearance:none;appearance:none;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--orange) var(--p,0%),rgba(255,255,255,.25) var(--p,0%));cursor:pointer}
+.seek::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--orange)}
+.seek::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid var(--orange)}
+.time{flex:none;font:600 12px/1 var(--body);font-variant-numeric:tabular-nums;color:#C9DBFF;white-space:nowrap}
+@media (max-width:640px){.bar{margin:10px 16px 0;gap:6px;padding:8px}.bar button{height:36px;min-width:36px;padding:0 7px;font-size:12px}.bar .hide-m{display:none}}
 @media (max-width:640px){
   .wrap{padding-inline:16px}
   .top img{height:42px}
@@ -80,7 +92,16 @@ h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
   </section>
 
   <section class="stage" aria-label="Grabación">
-    <div class="screen"><iframe id="v" title="Grabación de la clase" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen></iframe></div>
+    <div class="screen" id="screen"><iframe id="v" title="Grabación de la clase" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen></iframe></div>
+    <div class="bar" id="bar">
+      <button type="button" class="pp" id="bPlay" aria-label="Reproducir o pausar"></button>
+      <button type="button" id="bBack" aria-label="Retroceder 10 segundos">−10s</button>
+      <button type="button" id="bFwd" aria-label="Adelantar 10 segundos">+10s</button>
+      <input class="seek" id="seek" type="range" min="0" max="1000" value="0" aria-label="Avance de la grabación">
+      <span class="time" id="time">0:00 / 0:00</span>
+      <button type="button" class="hide-m" id="bSpeed" aria-label="Velocidad">1x</button>
+      <button type="button" id="bFs" aria-label="Pantalla completa"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
     <div class="tips">
       <span>▶ Puedes pausar, adelantar y retroceder cuando quieras.</span>
       <span>🎧 Usa audífonos para escuchar mejor.</span>
@@ -107,16 +128,44 @@ const nombre = ((qs.get("nombre") || (reg && reg.nombre) || "").trim().split(/\s
 if (nombre) { const h = document.getElementById("hello"); h.textContent = `${nombre.charAt(0).toUpperCase() + nombre.slice(1)}, aquí tienes la grabación 👇`; h.hidden = false; }
 
 const f = document.getElementById("v");
-f.src = `https://player.vimeo.com/video/${CONFIG.VIMEO_ID}?title=0&byline=0&portrait=0&dnt=1&playsinline=1`;
+f.src = `https://player.vimeo.com/video/${CONFIG.VIMEO_ID}?controls=0&title=0&byline=0&portrait=0&dnt=1&playsinline=1&keyboard=0`;
 
-// continúa donde la dejó
+const $ = id => document.getElementById(id);
+const PLAY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+const mmss = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); };
+$("bPlay").innerHTML = PLAY;
+
 const POS = "aq_grabacion_pos";
 if (window.Vimeo) {
   const player = new Vimeo.Player(f);
+  let dur = 0, playing = false, dragging = false;
+  const speeds = [1, 1.25, 1.5, 2]; let si = 0;
+  const paint = t => { const p = dur ? t / dur * 100 : 0; $("seek").style.setProperty("--p", p + "%"); if (!dragging) $("seek").value = Math.round(p * 10); $("time").textContent = mmss(t) + " / " + mmss(dur); };
+  const jump = async d => { try { const t = await player.getCurrentTime(); await player.setCurrentTime(Math.min(Math.max(0, t + d), dur - 1)); } catch(e){} };
+
+  player.getDuration().then(d => { dur = d; paint(0); });
   let saved = 0; try { saved = +localStorage.getItem(POS) || 0; } catch(e){}
-  player.ready().then(() => { if (saved > 30) player.setCurrentTime(saved).catch(() => {}); });
+  player.ready().then(() => { if (saved > 30) player.setCurrentTime(saved).then(paint).catch(() => {}); });
+
+  player.on("timeupdate", e => { dur = e.duration || dur; paint(e.seconds); });
+  player.on("play", () => { playing = true; $("bPlay").innerHTML = PAUSE; });
+  player.on("pause", () => { playing = false; $("bPlay").innerHTML = PLAY; });
+  player.on("ended", () => { playing = false; $("bPlay").innerHTML = PLAY; try { localStorage.removeItem(POS); } catch(e){} });
+
+  $("bPlay").onclick = () => playing ? player.pause() : player.play();
+  $("bBack").onclick = () => jump(-10);
+  $("bFwd").onclick = () => jump(10);
+  $("seek").addEventListener("input", () => { dragging = true; const t = $("seek").value / 1000 * dur; $("seek").style.setProperty("--p", $("seek").value / 10 + "%"); $("time").textContent = mmss(t) + " / " + mmss(dur); });
+  $("seek").addEventListener("change", () => { dragging = false; player.setCurrentTime($("seek").value / 1000 * dur).catch(() => {}); });
+  $("bSpeed").onclick = () => { si = (si + 1) % speeds.length; player.setPlaybackRate(speeds[si]).then(() => { $("bSpeed").textContent = speeds[si] + "x"; }).catch(() => {}); };
+  const scr = $("screen"), canFs = scr.requestFullscreen || scr.webkitRequestFullscreen;
+  $("bFs").onclick = () => { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else if (canFs) canFs.call(scr); else player.requestFullscreen().catch(() => {}); };
+
   setInterval(() => { player.getCurrentTime().then(t => { try { localStorage.setItem(POS, Math.floor(t)); } catch(e){} }).catch(() => {}); }, 10000);
-  player.on("ended", () => { try { localStorage.removeItem(POS); } catch(e){} });
+} else {
+  $("bar").hidden = true;
+  f.src = f.src.replace("controls=0", "controls=1");
 }
 </script>
 </body>
