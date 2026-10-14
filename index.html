@@ -119,6 +119,19 @@ h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
 <script>
 /* ===================== CONFIGURACIÓN ===================== */
 const CONFIG = { VIMEO_ID: "1234400521" };
+/* Medición (v2 · 14 oct 2026): aperturas y reproducciones → Sheet "Registros Clase 200K", pestaña Eventos.
+   Cada evento se cuenta una sola vez por navegador y por día. */
+const EV_URL = "https://script.google.com/macros/s/AKfycbwdsqAvt7qFhJuZEwRt924vOOiC7yQlxNDVxgj-CXKDgUcn3w_CnQz9Kvg_LIl-1lwdng/exec";
+function track(ev) {
+  try {
+    const k = "aq_ev_" + ev + "_" + new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(k)) return;
+    localStorage.setItem(k, "1");
+  } catch (e) {}
+  const src = (new URLSearchParams(location.search).get("src") || "directo").replace(/[^a-z0-9_-]/gi, "").slice(0, 30) || "directo";
+  try { fetch(EV_URL + "?ev=" + ev + "&src=" + src + "&p=grabacion", { mode: "no-cors", keepalive: true }).catch(() => {}); } catch (e) {}
+}
+track("grabacion_abrio");
 /* ========================================================= */
 const qs = new URLSearchParams(location.search);
 document.getElementById("yr").textContent = new Date().getFullYear();
@@ -148,8 +161,8 @@ if (window.Vimeo) {
   let saved = 0; try { saved = +localStorage.getItem(POS) || 0; } catch(e){}
   player.ready().then(() => { if (saved > 30) player.setCurrentTime(saved).then(paint).catch(() => {}); });
 
-  player.on("timeupdate", e => { dur = e.duration || dur; paint(e.seconds); });
-  player.on("play", () => { playing = true; $("bPlay").innerHTML = PAUSE; });
+  player.on("timeupdate", e => { dur = e.duration || dur; paint(e.seconds); if (dur && e.seconds / dur >= 0.5) track("grabacion_mitad"); if (dur && e.seconds / dur >= 0.9) track("grabacion_final"); });
+  player.on("play", () => { playing = true; $("bPlay").innerHTML = PAUSE; track("grabacion_play"); });
   player.on("pause", () => { playing = false; $("bPlay").innerHTML = PLAY; });
   player.on("ended", () => { playing = false; $("bPlay").innerHTML = PLAY; try { localStorage.removeItem(POS); } catch(e){} });
 
