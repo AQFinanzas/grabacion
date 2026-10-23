@@ -118,7 +118,7 @@ h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
 
 <script>
 /* ===================== CONFIGURACIÓN ===================== */
-const CONFIG = { VIMEO_ID: "1234400521" };
+const CONFIG = { VIMEO_ID: "1238613384", VIMEO_H: "65fd6e5c08" };
 /* Medición (v2 · 14 oct 2026): aperturas y reproducciones → Sheet "Registros Clase 200K", pestaña Eventos.
    Cada evento se cuenta una sola vez por navegador y por día. */
 const EV_URL = "https://script.google.com/macros/s/AKfycbwdsqAvt7qFhJuZEwRt924vOOiC7yQlxNDVxgj-CXKDgUcn3w_CnQz9Kvg_LIl-1lwdng/exec";
@@ -141,7 +141,7 @@ const nombre = ((qs.get("nombre") || (reg && reg.nombre) || "").trim().split(/\s
 if (nombre) { const h = document.getElementById("hello"); h.textContent = `${nombre.charAt(0).toUpperCase() + nombre.slice(1)}, aquí tienes la grabación 👇`; h.hidden = false; }
 
 const f = document.getElementById("v");
-f.src = `https://player.vimeo.com/video/${CONFIG.VIMEO_ID}?controls=0&title=0&byline=0&portrait=0&dnt=1&playsinline=1&keyboard=0`;
+f.src = `https://player.vimeo.com/video/${CONFIG.VIMEO_ID}?h=${CONFIG.VIMEO_H}&controls=0&title=0&byline=0&portrait=0&dnt=1&playsinline=1&keyboard=0`;
 
 const $ = id => document.getElementById(id);
 const PLAY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>';
@@ -149,7 +149,7 @@ const PAUSE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path
 const mmss = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); };
 $("bPlay").innerHTML = PLAY;
 
-const POS = "aq_grabacion_pos";
+const POS = "aq_grabacion_pos_" + CONFIG.VIMEO_ID;
 if (window.Vimeo) {
   const player = new Vimeo.Player(f);
   let dur = 0, playing = false, dragging = false;
